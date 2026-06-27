@@ -288,8 +288,17 @@ var REPORT_SOURCES=[
       {key:"discharge",label:"التصرف اللحظي",path:"kpis/discharge",agg:"last",unit:"م³/ث",thresholds:{warn:3000,danger:3500}},
       {key:"stations",label:"محطات متصلة",path:"kpis/stationsOnline",agg:"last",unit:"محطة"}
     ]},
-  { id:"ismailia_new", name:"ترعة الإسماعيلية الجديدة", type:"firebase", firebaseUrl:"",
-    metrics:[{key:"wl",label:"منسوب أمامي",path:"kpis/waterLevel",agg:"last",unit:"م",thresholds:{warn:16.2,danger:16.6}}]},
+  { id:"ismailia_new", name:"ترعة الإسماعيلية الجديدة", type:"firebase_array",
+    firebaseUrl:"https://ismailia-64500-default-rtdb.europe-west1.firebasedatabase.app",
+    arrayPath:"irrigation-dt/branches", matchKey:"id",
+    metrics:[
+      {key:"fom_f",label:"الفم — أمامي",match:"fom_ism",field:"refFront",unit:"م",thresholds:{warn:17.8,danger:18.2}},
+      {key:"fom_b",label:"الفم — خلفي",match:"fom_ism",field:"refBack",unit:"م"},
+      {key:"mnr_f",label:"حجز المنير — أمامي",match:"hgz_mnr",field:"refFront",unit:"م",thresholds:{warn:12.6,danger:13.0}},
+      {key:"mnr_b",label:"حجز المنير — خلفي",match:"hgz_mnr",field:"refBack",unit:"م"},
+      {key:"slh_f",label:"حجز الصالحية — أمامي",match:"hgz_slh",field:"refFront",unit:"م",thresholds:{warn:9.7,danger:10.0}},
+      {key:"slh_b",label:"حجز الصالحية — خلفي",match:"hgz_slh",field:"refBack",unit:"م"}
+    ]},
   { id:"ismailia_old", name:"ترعة الإسماعيلية القديمة", type:"none", firebaseUrl:"", metrics:[]},
   { id:"suez", name:"التوأم الرقمي لترعة السويس", type:"firebase", firebaseUrl:"",
     metrics:[{key:"flow",label:"تصرف منيِّف",path:"kpis/manyefFlow",agg:"last",unit:"م³/ث"}]},
@@ -367,6 +376,21 @@ function collectSystem(src){
       src.metrics.forEach(function(m){
         var col=sheet.rows.map(function(r){return r[m.column];}).filter(function(v){return v!=null&&v!=='';});
         out.metrics.push({key:m.key,label:m.label,value:aggregate(col,m.agg),unit:m.unit||'',thresholds:m.thresholds||null});
+      });
+      return out;
+    }).catch(function(){return emptyMetrics();});
+  }
+  if(src.type==='firebase_array'&&src.firebaseUrl&&src.arrayPath){
+    var aurl=src.firebaseUrl.replace(/\/+$/,'')+'/'+src.arrayPath.replace(/^\/+/,'')+'.json';
+    return fetch(aurl).then(function(r){if(!r.ok)throw 0;return r.json();}).then(function(arr){
+      var list=Array.isArray(arr)?arr:(arr&&typeof arr==='object'?Object.keys(arr).map(function(k){return arr[k];}):[]);
+      var mk=src.matchKey||'id';
+      src.metrics.forEach(function(m){
+        var item=null;
+        for(var i=0;i<list.length;i++){if(list[i]&&String(list[i][mk])===String(m.match)){item=list[i];break;}}
+        var val=item?Number(item[m.field]):null;
+        if(isNaN(val))val=null;
+        out.metrics.push({key:m.key,label:m.label,value:val,unit:m.unit||'',thresholds:m.thresholds||null});
       });
       return out;
     }).catch(function(){return emptyMetrics();});
