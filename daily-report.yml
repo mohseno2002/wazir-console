@@ -1,0 +1,41 @@
+name: التقرير اليومي للوزير
+
+# يعمل يومياً في تمام 6 صباحاً بتوقيت القاهرة (4 صباحاً UTC صيفاً / حسب التوقيت)
+# كرون يعمل بتوقيت UTC: 04:00 UTC = 06:00 بتوقيت مصر (UTC+2)
+on:
+  schedule:
+    - cron: "0 4 * * *"
+  workflow_dispatch:        # يسمح بالتشغيل اليدوي من تبويب Actions
+
+permissions:
+  contents: write           # ليتمكن من حفظ daily-report.json في المستودع
+
+jobs:
+  build-report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: سحب المستودع
+        uses: actions/checkout@v4
+
+      - name: تهيئة Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: توليد التقرير
+        env:
+          # يُستخدم فقط لو فعّلت وضع Claude في config.js
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: node scripts/agent.js
+
+      - name: حفظ التقرير في المستودع
+        run: |
+          git config user.name "wazir-agent"
+          git config user.email "agent@users.noreply.github.com"
+          git add daily-report.json
+          if git diff --staged --quiet; then
+            echo "لا تغيير في التقرير اليوم."
+          else
+            git commit -m "تحديث التقرير اليومي: $(date -u +%Y-%m-%d)"
+            git push
+          fi

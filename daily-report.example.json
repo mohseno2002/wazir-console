@@ -1,0 +1,29 @@
+{
+  "generatedAt": "2026-06-27T04:00:00.000Z",
+  "generatedDisplay": "27‏/06‏/2026، 06:00",
+  "timezone": "Africa/Cairo",
+  "summary": {
+    "overall": "وضع مستقر مع مؤشرات تحتاج مراقبة",
+    "activeCount": 4, "offlineCount": 2, "dangerCount": 1, "warnCount": 1,
+    "text": "تقرير الوضع الهيدروليكي: وضع مستقر مع مؤشرات تحتاج مراقبة. عدد المنظومات النشطة 4 من 6."
+  },
+  "commentary": {
+    "engine": "rule",
+    "summary": "الوضع التشغيلي العام مستقر مع ضرورة متابعة منسوب ترعة الإسماعيلية الذي تجاوز الحد المعتاد، وتصرف النيل القريب من حد الإنذار. باقي المنظومات ضمن النطاق الطبيعي."
+  },
+  "systems": [
+    { "id":"nile","name":"التوأم الرقمي للنيل","error":null,"metrics":[
+      {"key":"discharge","label":"التصرف اللحظي","value":3650,"unit":"م³/ث","status":"danger"},
+      {"key":"stations","label":"محطات متصلة","value":1248,"unit":"محطة","status":"normal"}]},
+    { "id":"ism_new","name":"ترعة الإسماعيلية الجديدة","error":null,"metrics":[
+      {"key":"wl","label":"منسوب أمامي","value":16.35,"unit":"م","status":"warn"}]},
+    { "id":"suez","name":"التوأم الرقمي لترعة السويس","error":null,"metrics":[
+      {"key":"flow","label":"تصرف منيِّف","value":42,"unit":"م³/ث","status":"normal"}]},
+    { "id":"giza","name":"لوحة ري الجيزة","error":null,"metrics":[
+      {"key":"c","label":"شكاوى اليوم","value":7,"unit":"بلاغ","status":"normal"}]},
+    { "id":"ism_old","name":"ترعة الإسماعيلية القديمة","error":null,"metrics":[
+      {"key":"x","label":"منسوب","value":null,"unit":"م","status":"normal"}]},
+    { "id":"tired","name":"سجل الترع المتعبة","error":null,"metrics":[
+      {"key":"reg","label":"ترع مسجّلة","value":447,"unit":"ترعة","status":"normal"}]}
+  ]
+}

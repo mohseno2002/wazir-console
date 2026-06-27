@@ -116,6 +116,38 @@ body{font-family:'Cairo',sans-serif;color:var(--ink);background:var(--bg);-webki
 @media(max-width:640px){.shell{padding:12px}.brand{min-height:auto}.top-kpis{grid-template-columns:1fr 1fr}.kpi{min-height:98px}.kpi .val{font-size:21px}.stage{gap:12px}.map-card{min-height:470px;padding:12px}.map-wrap{height:405px}.side{grid-template-columns:1fr}.health{flex-direction:column}.grid{grid-template-columns:1fr 1fr;gap:10px}.tile{min-height:185px;padding:14px}.t-ico{width:58px;height:58px}.t-ico svg{width:32px;height:32px}.t-name{font-size:14px}.t-desc{display:none}.dock{grid-template-columns:1fr}.dock-item{border-left:0}.brand h1{font-size:18px}.emblem{width:62px;height:62px}.map-label{font-size:10px}.gauge{width:160px}.gauge .circle{width:92px;height:92px}}
 @media(max-width:390px){.grid,.top-kpis{grid-template-columns:1fr}.map-wrap{height:360px}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important}}
+/* ===== بطاقة التقرير اليومي ===== */
+.report-card{background:var(--panel-grad);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow),inset 0 1px 0 rgba(255,255,255,.06);backdrop-filter:blur(16px);position:relative;overflow:hidden;padding:20px;margin-bottom:8px}
+.report-card:before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1px;background:var(--panel-edge);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;opacity:.8}
+.rc-load{color:var(--muted);font-size:13px;font-weight:700;padding:8px 0}
+.rc-summary{display:flex;gap:14px;align-items:flex-start;position:relative;z-index:2}
+.rc-badge{flex:0 0 auto;width:54px;height:54px;border-radius:16px;display:grid;place-items:center;font-size:24px;box-shadow:0 8px 20px rgba(0,0,0,.3)}
+.rc-badge.ok{background:linear-gradient(145deg,var(--emerald),#0c7a52)}
+.rc-badge.warn{background:linear-gradient(145deg,var(--orange),#a85d12)}
+.rc-badge.danger{background:linear-gradient(145deg,var(--red),#8c1f33)}
+.rc-head{flex:1;min-width:0}
+.rc-overall{font-size:16px;font-weight:900;color:var(--kpi-strong);line-height:1.35}
+.rc-text{font-size:13px;color:var(--muted);line-height:1.8;margin-top:6px}
+.rc-stats{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;position:relative;z-index:2}
+.rc-stat{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:800;padding:7px 12px;border-radius:11px;border:1px solid var(--line);background:var(--enter-bg);color:var(--kpi-text)}
+.rc-stat b{font-family:'JetBrains Mono',monospace;color:var(--kpi-strong)}
+.rc-stat.danger{border-color:rgba(255,77,109,.34);color:var(--red)}
+.rc-stat.warn{border-color:rgba(255,184,77,.34);color:var(--orange)}
+.rc-systems{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-top:16px;position:relative;z-index:2}
+.rc-sys{padding:12px 13px;border-radius:13px;border:1px solid var(--alert-line);background:var(--alert-bg)}
+.rc-sys-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.rc-sys-name{font-size:12.5px;font-weight:800;color:var(--kpi-strong)}
+.rc-sys-st{font-size:9.5px;font-weight:900;padding:3px 8px;border-radius:7px}
+.rc-sys-st.normal{background:rgba(54,245,173,.14);color:var(--emerald)}
+.rc-sys-st.warn{background:rgba(255,184,77,.14);color:var(--orange)}
+.rc-sys-st.danger{background:rgba(255,77,109,.14);color:var(--red)}
+.rc-sys-st.none{background:rgba(159,184,205,.14);color:var(--muted)}
+.rc-sys-metrics{display:flex;flex-wrap:wrap;gap:8px;margin-top:9px}
+.rc-m{font-size:11px;color:var(--muted)}
+.rc-m b{font-family:'JetBrains Mono',monospace;color:var(--kpi-text);direction:ltr;display:inline-block}
+.rc-m.warn b{color:var(--orange)}.rc-m.danger b{color:var(--red)}
+.rc-engine{font-family:'JetBrains Mono',monospace;font-size:9.5px;color:var(--muted);margin-top:12px;position:relative;z-index:2;opacity:.7}
+@media(max-width:640px){.rc-systems{grid-template-columns:1fr}.rc-overall{font-size:14px}}
 /* ===== زر تبديل الوضع ===== */
 .brand{align-items:flex-start}
 .theme-toggle{flex:0 0 auto;align-self:center;background:none;border:0;padding:0;cursor:pointer;margin-inline-start:auto}
@@ -190,6 +222,11 @@ body{font-family:'Cairo',sans-serif;color:var(--ink);background:var(--bg);-webki
     </aside>
   </section>
 
+  <div class="apps-head"><h2 class="section-title">تقرير اليوم</h2><span class="chip gold" id="reportTime">—</span></div>
+  <div class="report-card" id="reportCard">
+    <div class="rc-load" id="rcLoad">جارٍ تحميل تقرير اليوم…</div>
+  </div>
+
   <div class="apps-head"><h2 class="section-title">المنظومات والتطبيقات</h2><span class="chip" id="appCount"></span></div>
   <div class="grid" id="grid"></div>
 
@@ -238,6 +275,55 @@ liveJitter('stationVal',1248,6);
 })();
 liveJitter('flowVal',2850,18,function(v){return Math.round(v).toLocaleString('en-US');});
 liveJitter('sensorVal',15892,9);
+
+/* ===== تقرير اليوم: جلب daily-report.json وعرضه ===== */
+function statusEmoji(s){return s==='danger'?'⚠':s==='warn'?'◐':'✓';}
+function badgeClass(sum){if(sum.dangerCount>0)return'danger';if(sum.warnCount>0)return'warn';return'ok';}
+function esc(t){var d=document.createElement('div');d.textContent=t==null?'':String(t);return d.innerHTML;}
+function loadReport(){
+  fetch('daily-report.json?t='+Date.now()).then(function(r){
+    if(!r.ok)throw new Error('no report');return r.json();
+  }).then(function(rep){
+    document.getElementById('reportTime').textContent=rep.generatedDisplay||'—';
+    var sum=rep.summary||{};
+    var html='';
+    html+='<div class="rc-summary">';
+    html+='<div class="rc-badge '+badgeClass(sum)+'">'+(sum.dangerCount>0?'⚠':sum.warnCount>0?'◐':'✓')+'</div>';
+    html+='<div class="rc-head"><div class="rc-overall">'+esc(sum.overall||'')+'</div>';
+    html+='<div class="rc-text">'+esc((rep.commentary&&rep.commentary.summary)||sum.text||'')+'</div></div></div>';
+    html+='<div class="rc-stats">';
+    html+='<span class="rc-stat"><span>منظومات نشطة</span><b>'+(sum.activeCount||0)+'/'+(rep.systems?rep.systems.length:0)+'</b></span>';
+    if(sum.dangerCount>0)html+='<span class="rc-stat danger"><span>إنذارات حرجة</span><b>'+sum.dangerCount+'</b></span>';
+    if(sum.warnCount>0)html+='<span class="rc-stat warn"><span>تنبيهات مراقبة</span><b>'+sum.warnCount+'</b></span>';
+    if(!sum.dangerCount&&!sum.warnCount)html+='<span class="rc-stat"><span>لا إنذارات تشغيلية</span></span>';
+    html+='</div>';
+    if(rep.systems&&rep.systems.length){
+      html+='<div class="rc-systems">';
+      rep.systems.forEach(function(s){
+        var has=s.metrics.some(function(m){return m.value!=null;});
+        var worst='normal';
+        s.metrics.forEach(function(m){if(m.status==='danger')worst='danger';else if(m.status==='warn'&&worst!=='danger')worst='warn';});
+        if(!has)worst='none';
+        var stTxt=worst==='danger'?'حرج':worst==='warn'?'مراقبة':worst==='none'?'لا بيانات':'طبيعي';
+        html+='<div class="rc-sys"><div class="rc-sys-top"><span class="rc-sys-name">'+esc(s.name)+'</span><span class="rc-sys-st '+worst+'">'+stTxt+'</span></div>';
+        html+='<div class="rc-sys-metrics">';
+        s.metrics.forEach(function(m){
+          var v=m.value==null?'—':(typeof m.value==='number'?m.value.toLocaleString('en-US'):m.value);
+          html+='<span class="rc-m '+(m.status||'')+'">'+esc(m.label)+': <b>'+esc(v)+'</b> '+esc(m.unit||'')+'</span>';
+        });
+        html+='</div></div>';
+      });
+      html+='</div>';
+    }
+    var eng=(rep.commentary&&rep.commentary.engine)==='claude'?'تعليق ذكي (Claude)':'محرّك قاعدي';
+    html+='<div class="rc-engine">'+eng+' • آخر تحديث '+esc(rep.generatedDisplay||'')+'</div>';
+    document.getElementById('reportCard').innerHTML=html;
+  }).catch(function(){
+    document.getElementById('reportCard').innerHTML='<div class="rc-load">لم يُنشَر تقرير بعد. سيظهر هنا تلقائياً بعد أول تشغيل للوكيل.</div>';
+    document.getElementById('reportTime').textContent='غير متاح';
+  });
+}
+loadReport();
 
 /* ===== تبديل الوضع النهاري/الليلي ===== */
 var THEME_KEY='wazir_theme';

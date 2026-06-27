@@ -1,0 +1,8 @@
+{
+  "name": "wazir-daily-agent",
+  "version": "1.0.0",
+  "description": "وكيل التقرير اليومي للوحة قيادة الوزير",
+  "main": "scripts/agent.js",
+  "scripts": { "report": "node scripts/agent.js" },
+  "engines": { "node": ">=18" }
+}
