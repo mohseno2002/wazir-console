@@ -341,7 +341,7 @@ var REPORT_SOURCES=[
       {key:"discharge",label:"التصرف اللحظي",path:"kpis/discharge",agg:"last",unit:"م³/ث",thresholds:{warn:3000,danger:3500}},
       {key:"stations",label:"محطات متصلة",path:"kpis/stationsOnline",agg:"last",unit:"محطة"}
     ]},
-  { id:"ismailia_new", name:"ترعة الإسماعيلية الجديدة", type:"firebase_array",
+  { id:"ismailia_new", name:"ترعة الإسماعيلية", type:"firebase_array",
     firebaseUrl:"https://ismailia-64500-default-rtdb.europe-west1.firebasedatabase.app",
     arrayPath:"irrigation-dt/branches", matchKey:"id",
     metrics:[
@@ -352,9 +352,18 @@ var REPORT_SOURCES=[
       {key:"slh_f",label:"حجز الصالحية — أمامي",match:"hgz_slh",field:"refFront",unit:"م",thresholds:{warn:9.7,danger:10.0}},
       {key:"slh_b",label:"حجز الصالحية — خلفي",match:"hgz_slh",field:"refBack",unit:"م"}
     ]},
-  { id:"ismailia_old", name:"ترعة الإسماعيلية القديمة", type:"none", firebaseUrl:"", metrics:[]},
-  { id:"suez", name:"التوأم الرقمي لترعة السويس", type:"firebase", firebaseUrl:"",
-    metrics:[{key:"flow",label:"تصرف منيِّف",path:"kpis/manyefFlow",agg:"last",unit:"م³/ث"}]},
+  { id:"ismailia_old", name:"ترعة الإسماعيلية القديمة", type:"none", firebaseUrl:"", metrics:[], hideInReport:true },
+  { id:"suez", name:"التوأم الرقمي لترعة السويس", type:"firebase_dated",
+    firebaseUrl:"https://ismailia-64500-default-rtdb.europe-west1.firebasedatabase.app",
+    datedPath:"ismailia-dt/branches",
+    metrics:[
+      {key:"suez_f",label:"الفم — أمامي",node:"suez",field:"front",unit:"م",thresholds:{warn:7.7,danger:8.0}},
+      {key:"suez_b",label:"الفم — خلفي",node:"suez",field:"back",unit:"م"},
+      {key:"s16_f",label:"كيلو ١٦ — أمامي",node:"suez16",field:"front",unit:"م",thresholds:{warn:6.8,danger:7.1}},
+      {key:"s16_b",label:"كيلو ١٦ — خلفي",node:"suez16",field:"back",unit:"م"},
+      {key:"s50_f",label:"كيلو ٤٩.٥ — أمامي",node:"suez50",field:"front",unit:"م",thresholds:{warn:5.1,danger:5.4}},
+      {key:"s50_b",label:"كيلو ٤٩.٥ — خلفي",node:"suez50",field:"back",unit:"م"}
+    ]},
   { id:"giza", name:"لوحة ري الجيزة", type:"sheet",
     sheetCsvUrl:"https://docs.google.com/spreadsheets/d/e/2PACX-1vQx4SgO2qck9gR6RX55GsO7ktMorG-sqnDOdnFAWO3iruSoOUHIqEEEzMoj_BFOu9oLjVjb4_7NNgjn/pub?output=csv",
     metrics:[
@@ -474,6 +483,25 @@ function collectSystem(src){
       return out;
     }).catch(function(){return emptyMetrics();});
   }
+  if(src.type==='firebase_dated'&&src.firebaseUrl&&src.datedPath){
+    var durl=src.firebaseUrl.replace(/\/+$/,'')+'/'+src.datedPath.replace(/^\/+/,'')+'.json';
+    return fetch(durl).then(function(r){if(!r.ok)throw 0;return r.json();}).then(function(obj){
+      if(!obj||typeof obj!=='object')return emptyMetrics();
+      // اختر آخر تاريخ (المفاتيح تواريخ نصية YYYY-MM-DD، نتجاهل ما يبدأ بشرطة سفلية)
+      var keys=Object.keys(obj).filter(function(k){return k.charAt(0)!=='_';});
+      keys.sort();
+      var latest=keys.length?obj[keys[keys.length-1]]:null;
+      src.metrics.forEach(function(m){
+        var val=null;
+        if(latest&&latest[m.node]&&latest[m.node][m.field]!=null){
+          val=Number(latest[m.node][m.field]);
+          if(isNaN(val))val=null;
+        }
+        out.metrics.push({key:m.key,label:m.label,value:val,unit:m.unit||'',thresholds:m.thresholds||null});
+      });
+      return out;
+    }).catch(function(){return emptyMetrics();});
+  }
   return Promise.resolve(emptyMetrics());
 }
 
@@ -506,6 +534,7 @@ function ruleCommentary(systems,sum){
 function generateReport(){
   var chain=Promise.resolve([]);
   REPORT_SOURCES.forEach(function(src){
+    if(src.hideInReport)return;
     chain=chain.then(function(arr){return collectSystem(src).then(function(s){arr.push(s);return arr;});});
   });
   return chain.then(function(systems){
