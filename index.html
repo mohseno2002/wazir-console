@@ -222,7 +222,7 @@ body{font-family:'Cairo',sans-serif;color:var(--ink);background:var(--bg);-webki
     </aside>
   </section>
 
-  <div class="apps-head"><h2 class="section-title">تقرير اليوم</h2><span class="chip gold" id="reportTime">—</span></div>
+  <div class="apps-head"><h2 class="section-title">تقرير اليوم</h2><div style="display:flex;gap:8px;align-items:center"><span class="chip gold" id="reportTime">—</span><button class="chip" id="reportRefresh" style="cursor:pointer;border:0;font:inherit">↻ تحديث</button></div></div>
   <div class="report-card" id="reportCard">
     <div class="rc-load" id="rcLoad">جارٍ تحميل تقرير اليوم…</div>
   </div>
@@ -276,54 +276,204 @@ liveJitter('stationVal',1248,6);
 liveJitter('flowVal',2850,18,function(v){return Math.round(v).toLocaleString('en-US');});
 liveJitter('sensorVal',15892,9);
 
-/* ===== تقرير اليوم: جلب daily-report.json وعرضه ===== */
-function statusEmoji(s){return s==='danger'?'⚠':s==='warn'?'◐':'✓';}
-function badgeClass(sum){if(sum.dangerCount>0)return'danger';if(sum.warnCount>0)return'warn';return'ok';}
+/* ============================================================================
+   وكيل التقرير اليومي — يعمل بالكامل داخل المتصفح (لا حاجة لـ GitHub Actions)
+   يقرأ المصادر، يلخّص، يولّد تعليقاً، يعرض البطاقة، ويحفظ آخر نسخة محلياً.
+   ============================================================================ */
+
+/* ----- 1) مصادرك: عدّل هنا فقط. املأ الخانات الفارغة عند الجاهزية ----- */
+var REPORT_SOURCES=[
+  { id:"nile", name:"التوأم الرقمي للنيل", type:"firebase", firebaseUrl:"",
+    metrics:[
+      {key:"discharge",label:"التصرف اللحظي",path:"kpis/discharge",agg:"last",unit:"م³/ث",thresholds:{warn:3000,danger:3500}},
+      {key:"stations",label:"محطات متصلة",path:"kpis/stationsOnline",agg:"last",unit:"محطة"}
+    ]},
+  { id:"ismailia_new", name:"ترعة الإسماعيلية الجديدة", type:"firebase", firebaseUrl:"",
+    metrics:[{key:"wl",label:"منسوب أمامي",path:"kpis/waterLevel",agg:"last",unit:"م",thresholds:{warn:16.2,danger:16.6}}]},
+  { id:"ismailia_old", name:"ترعة الإسماعيلية القديمة", type:"none", firebaseUrl:"", metrics:[]},
+  { id:"suez", name:"التوأم الرقمي لترعة السويس", type:"firebase", firebaseUrl:"",
+    metrics:[{key:"flow",label:"تصرف منيِّف",path:"kpis/manyefFlow",agg:"last",unit:"م³/ث"}]},
+  { id:"giza", name:"لوحة ري الجيزة", type:"sheet", sheetCsvUrl:"",
+    metrics:[
+      {key:"complaints",label:"شكاوى اليوم",column:"complaints_today",agg:"last",unit:"بلاغ"},
+      {key:"shifts",label:"مناوبات نشطة",column:"active_shifts",agg:"last",unit:"وردية"}
+    ]},
+  { id:"tired", name:"سجل الترع المتعبة", type:"sheet", sheetCsvUrl:"",
+    metrics:[{key:"reg",label:"ترع مسجّلة",column:"canal_id",agg:"count",unit:"ترعة"}]}
+];
+
+/* ----- 2) أدوات ----- */
 function esc(t){var d=document.createElement('div');d.textContent=t==null?'':String(t);return d.innerHTML;}
-function loadReport(){
-  fetch('daily-report.json?t='+Date.now()).then(function(r){
-    if(!r.ok)throw new Error('no report');return r.json();
-  }).then(function(rep){
-    document.getElementById('reportTime').textContent=rep.generatedDisplay||'—';
-    var sum=rep.summary||{};
-    var html='';
-    html+='<div class="rc-summary">';
-    html+='<div class="rc-badge '+badgeClass(sum)+'">'+(sum.dangerCount>0?'⚠':sum.warnCount>0?'◐':'✓')+'</div>';
-    html+='<div class="rc-head"><div class="rc-overall">'+esc(sum.overall||'')+'</div>';
-    html+='<div class="rc-text">'+esc((rep.commentary&&rep.commentary.summary)||sum.text||'')+'</div></div></div>';
-    html+='<div class="rc-stats">';
-    html+='<span class="rc-stat"><span>منظومات نشطة</span><b>'+(sum.activeCount||0)+'/'+(rep.systems?rep.systems.length:0)+'</b></span>';
-    if(sum.dangerCount>0)html+='<span class="rc-stat danger"><span>إنذارات حرجة</span><b>'+sum.dangerCount+'</b></span>';
-    if(sum.warnCount>0)html+='<span class="rc-stat warn"><span>تنبيهات مراقبة</span><b>'+sum.warnCount+'</b></span>';
-    if(!sum.dangerCount&&!sum.warnCount)html+='<span class="rc-stat"><span>لا إنذارات تشغيلية</span></span>';
-    html+='</div>';
-    if(rep.systems&&rep.systems.length){
-      html+='<div class="rc-systems">';
-      rep.systems.forEach(function(s){
-        var has=s.metrics.some(function(m){return m.value!=null;});
-        var worst='normal';
-        s.metrics.forEach(function(m){if(m.status==='danger')worst='danger';else if(m.status==='warn'&&worst!=='danger')worst='warn';});
-        if(!has)worst='none';
-        var stTxt=worst==='danger'?'حرج':worst==='warn'?'مراقبة':worst==='none'?'لا بيانات':'طبيعي';
-        html+='<div class="rc-sys"><div class="rc-sys-top"><span class="rc-sys-name">'+esc(s.name)+'</span><span class="rc-sys-st '+worst+'">'+stTxt+'</span></div>';
-        html+='<div class="rc-sys-metrics">';
-        s.metrics.forEach(function(m){
-          var v=m.value==null?'—':(typeof m.value==='number'?m.value.toLocaleString('en-US'):m.value);
-          html+='<span class="rc-m '+(m.status||'')+'">'+esc(m.label)+': <b>'+esc(v)+'</b> '+esc(m.unit||'')+'</span>';
-        });
-        html+='</div></div>';
-      });
-      html+='</div>';
-    }
-    var eng=(rep.commentary&&rep.commentary.engine)==='claude'?'تعليق ذكي (Claude)':'محرّك قاعدي';
-    html+='<div class="rc-engine">'+eng+' • آخر تحديث '+esc(rep.generatedDisplay||'')+'</div>';
-    document.getElementById('reportCard').innerHTML=html;
-  }).catch(function(){
-    document.getElementById('reportCard').innerHTML='<div class="rc-load">لم يُنشَر تقرير بعد. سيظهر هنا تلقائياً بعد أول تشغيل للوكيل.</div>';
-    document.getElementById('reportTime').textContent='غير متاح';
+function aggregate(values,how){
+  var nums=values.map(Number).filter(function(n){return!isNaN(n);});
+  if(how==='count')return values.length;
+  if(!nums.length)return null;
+  if(how==='max')return Math.max.apply(null,nums);
+  if(how==='min')return Math.min.apply(null,nums);
+  if(how==='avg')return nums.reduce(function(a,b){return a+b;},0)/nums.length;
+  return nums[nums.length-1];
+}
+function statusOf(v,th){
+  if(!th||v==null||isNaN(v))return'normal';
+  if(th.danger!=null&&v>=th.danger)return'danger';
+  if(th.warn!=null&&v>=th.warn)return'warn';
+  return'normal';
+}
+function cairoNow(){
+  var d=new Date();
+  try{return new Intl.DateTimeFormat('ar-EG-u-nu-latn',{timeZone:'Africa/Cairo',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).format(d);}
+  catch(e){return d.toLocaleString();}
+}
+
+/* ----- 3) قرّاء المصادر ----- */
+function readFirebase(base,p,how){
+  var url=base.replace(/\/+$/,'')+'/'+p.replace(/^\/+/,'')+'.json';
+  return fetch(url).then(function(r){if(!r.ok)throw 0;return r.json();}).then(function(data){
+    if(data==null)return null;
+    if(typeof data==='object'){var vals=Object.keys(data).map(function(k){return data[k];});return aggregate(vals,how||'last');}
+    return Number(data);
   });
 }
-loadReport();
+function parseCSV(text){
+  var lines=text.replace(/\r/g,'').split('\n').filter(function(l){return l.length;});
+  if(!lines.length)return{header:[],rows:[]};
+  var header=lines[0].split(',').map(function(h){return h.trim();});
+  var rows=lines.slice(1).map(function(line){var c=line.split(',');var o={};header.forEach(function(h,i){o[h]=(c[i]||'').trim();});return o;});
+  return{header:header,rows:rows};
+}
+function readSheet(url){
+  return fetch(url).then(function(r){if(!r.ok)throw 0;return r.text();}).then(parseCSV);
+}
+
+/* ----- 4) جمع منظومة ----- */
+function collectSystem(src){
+  var out={id:src.id,name:src.name,metrics:[]};
+  function emptyMetrics(){src.metrics.forEach(function(m){out.metrics.push({key:m.key,label:m.label,value:null,unit:m.unit||'',thresholds:m.thresholds||null});});return out;}
+  if(src.type==='firebase'&&src.firebaseUrl){
+    var chain=Promise.resolve();
+    src.metrics.forEach(function(m){
+      chain=chain.then(function(){
+        return readFirebase(src.firebaseUrl,m.path,m.agg).then(function(v){
+          out.metrics.push({key:m.key,label:m.label,value:v,unit:m.unit||'',thresholds:m.thresholds||null});
+        }).catch(function(){
+          out.metrics.push({key:m.key,label:m.label,value:null,unit:m.unit||'',thresholds:m.thresholds||null});
+        });
+      });
+    });
+    return chain.then(function(){return out;});
+  }
+  if(src.type==='sheet'&&src.sheetCsvUrl){
+    return readSheet(src.sheetCsvUrl).then(function(sheet){
+      src.metrics.forEach(function(m){
+        var col=sheet.rows.map(function(r){return r[m.column];}).filter(function(v){return v!=null&&v!=='';});
+        out.metrics.push({key:m.key,label:m.label,value:aggregate(col,m.agg),unit:m.unit||'',thresholds:m.thresholds||null});
+      });
+      return out;
+    }).catch(function(){return emptyMetrics();});
+  }
+  return Promise.resolve(emptyMetrics());
+}
+
+/* ----- 5) التلخيص والتعليق القاعدي ----- */
+function buildSummary(systems){
+  var danger=0,warn=0,active=0;
+  systems.forEach(function(s){
+    if(s.metrics.some(function(m){return m.value!=null;}))active++;
+    s.metrics.forEach(function(m){var st=statusOf(m.value,m.thresholds);if(st==='danger')danger++;if(st==='warn')warn++;});
+  });
+  var overall=danger>0?'حالة حرجة تستدعي المتابعة الفورية':warn>0?'وضع مستقر مع مؤشرات تحتاج مراقبة':'الوضع العام مستقر وضمن المعدلات الطبيعية';
+  return{overall:overall,activeCount:active,total:systems.length,dangerCount:danger,warnCount:warn};
+}
+function ruleCommentary(systems,sum){
+  var alerts=[];
+  systems.forEach(function(s){
+    s.metrics.forEach(function(m){
+      var st=statusOf(m.value,m.thresholds);
+      if(st==='danger')alerts.push(s.name+' — '+m.label+' بلغ '+m.value+' '+(m.unit||'')+' (تجاوز حد الخطر)');
+      else if(st==='warn')alerts.push(s.name+' — '+m.label+' عند '+m.value+' '+(m.unit||'')+' (أعلى من المعتاد)');
+    });
+  });
+  var t='تقرير الوضع الهيدروليكي: '+sum.overall+'. المنظومات النشطة '+sum.activeCount+' من '+sum.total+'. ';
+  if(alerts.length)t+='أبرز المؤشرات: '+alerts.join('؛ ')+'.';
+  else t+='لا توجد إنذارات تشغيلية، وجميع المؤشرات ضمن النطاق الطبيعي.';
+  return t;
+}
+
+/* ----- 6) توليد التقرير الكامل ----- */
+function generateReport(){
+  var chain=Promise.resolve([]);
+  REPORT_SOURCES.forEach(function(src){
+    chain=chain.then(function(arr){return collectSystem(src).then(function(s){arr.push(s);return arr;});});
+  });
+  return chain.then(function(systems){
+    var sum=buildSummary(systems);
+    var rep={
+      generatedDisplay:cairoNow(),
+      summary:{overall:sum.overall,activeCount:sum.activeCount,dangerCount:sum.dangerCount,warnCount:sum.warnCount},
+      commentary:{engine:'rule',summary:ruleCommentary(systems,sum)},
+      systems:systems.map(function(s){return{id:s.id,name:s.name,metrics:s.metrics.map(function(m){return{key:m.key,label:m.label,value:m.value,unit:m.unit,status:statusOf(m.value,m.thresholds)};})};})
+    };
+    try{localStorage.setItem('wazir_last_report',JSON.stringify(rep));}catch(e){}
+    return rep;
+  });
+}
+
+/* ----- 7) عرض البطاقة ----- */
+function renderReport(rep){
+  var sum=rep.summary||{};
+  document.getElementById('reportTime').textContent=rep.generatedDisplay||'—';
+  var badge=sum.dangerCount>0?'danger':sum.warnCount>0?'warn':'ok';
+  var icon=sum.dangerCount>0?'⚠':sum.warnCount>0?'◐':'✓';
+  var html='<div class="rc-summary">';
+  html+='<div class="rc-badge '+badge+'">'+icon+'</div>';
+  html+='<div class="rc-head"><div class="rc-overall">'+esc(sum.overall||'')+'</div>';
+  html+='<div class="rc-text">'+esc((rep.commentary&&rep.commentary.summary)||'')+'</div></div></div>';
+  html+='<div class="rc-stats">';
+  html+='<span class="rc-stat"><span>منظومات نشطة</span><b>'+(sum.activeCount||0)+'/'+(rep.systems?rep.systems.length:0)+'</b></span>';
+  if(sum.dangerCount>0)html+='<span class="rc-stat danger"><span>إنذارات حرجة</span><b>'+sum.dangerCount+'</b></span>';
+  if(sum.warnCount>0)html+='<span class="rc-stat warn"><span>تنبيهات مراقبة</span><b>'+sum.warnCount+'</b></span>';
+  if(!sum.dangerCount&&!sum.warnCount)html+='<span class="rc-stat"><span>لا إنذارات تشغيلية</span></span>';
+  html+='</div>';
+  if(rep.systems&&rep.systems.length){
+    html+='<div class="rc-systems">';
+    rep.systems.forEach(function(s){
+      var has=s.metrics.some(function(m){return m.value!=null;});
+      var worst='normal';
+      s.metrics.forEach(function(m){if(m.status==='danger')worst='danger';else if(m.status==='warn'&&worst!=='danger')worst='warn';});
+      if(!has)worst='none';
+      var stTxt=worst==='danger'?'حرج':worst==='warn'?'مراقبة':worst==='none'?'لا بيانات':'طبيعي';
+      html+='<div class="rc-sys"><div class="rc-sys-top"><span class="rc-sys-name">'+esc(s.name)+'</span><span class="rc-sys-st '+worst+'">'+stTxt+'</span></div><div class="rc-sys-metrics">';
+      s.metrics.forEach(function(m){
+        var v=m.value==null?'—':(typeof m.value==='number'?m.value.toLocaleString('en-US'):m.value);
+        html+='<span class="rc-m '+(m.status||'')+'">'+esc(m.label)+': <b>'+esc(v)+'</b> '+esc(m.unit||'')+'</span>';
+      });
+      html+='</div></div>';
+    });
+    html+='</div>';
+  }
+  html+='<div class="rc-engine">محرّك قاعدي (داخل اللوحة) • آخر تحديث '+esc(rep.generatedDisplay||'')+'</div>';
+  document.getElementById('reportCard').innerHTML=html;
+}
+
+/* ----- 8) التشغيل: اعرض المحفوظ فوراً ثم حدّث بالخلفية ----- */
+function refreshReport(showLoading){
+  var btn=document.getElementById('reportRefresh');
+  if(btn){btn.textContent='⏳ جارٍ…';btn.disabled=true;}
+  if(showLoading)document.getElementById('reportCard').innerHTML='<div class="rc-load">جارٍ توليد تقرير اليوم…</div>';
+  generateReport().then(renderReport).catch(function(){
+    document.getElementById('reportCard').innerHTML='<div class="rc-load">تعذّر توليد التقرير. تأكد من روابط المصادر في الإعدادات.</div>';
+  }).then(function(){
+    if(btn){btn.textContent='↻ تحديث';btn.disabled=false;}
+  });
+}
+(function initReport(){
+  var cached=null;
+  try{cached=JSON.parse(localStorage.getItem('wazir_last_report')||'null');}catch(e){}
+  if(cached){renderReport(cached);refreshReport(false);}
+  else{refreshReport(true);}
+  var b=document.getElementById('reportRefresh');
+  if(b)b.onclick=function(){refreshReport(true);};
+})();
 
 /* ===== تبديل الوضع النهاري/الليلي ===== */
 var THEME_KEY='wazir_theme';
