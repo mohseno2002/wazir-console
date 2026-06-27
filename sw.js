@@ -1,4 +1,4 @@
-var CACHE = "wazir-console-v2";
+var CACHE = "wazir-console-v3";
 var CORE = [
   "./",
   "./index.html",

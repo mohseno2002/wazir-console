@@ -383,7 +383,23 @@ function collectSystem(src){
   if(src.type==='firebase_array'&&src.firebaseUrl&&src.arrayPath){
     var aurl=src.firebaseUrl.replace(/\/+$/,'')+'/'+src.arrayPath.replace(/^\/+/,'')+'.json';
     return fetch(aurl).then(function(r){if(!r.ok)throw 0;return r.json();}).then(function(arr){
-      var list=Array.isArray(arr)?arr:(arr&&typeof arr==='object'?Object.keys(arr).map(function(k){return arr[k];}):[]);
+      // اكتشاف الـ array سواء كان مباشراً، أو متغلّفاً داخل كائن (مثل {branches:[...]})
+      function toList(x){
+        if(Array.isArray(x))return x.filter(function(o){return o&&typeof o==='object';});
+        if(x&&typeof x==='object'){
+          // ابحث عن أول قيمة هي array بداخلها كائنات
+          var keys=Object.keys(x);
+          for(var j=0;j<keys.length;j++){
+            var v=x[keys[j]];
+            if(Array.isArray(v)&&v.some(function(o){return o&&typeof o==='object';}))return v.filter(function(o){return o&&typeof o==='object';});
+          }
+          // أو كائن مفاتيحه عناصر (تجاهل المفاتيح التي تبدأ بشرطة سفلية)
+          var vals=keys.filter(function(k){return k.charAt(0)!=='_';}).map(function(k){return x[k];}).filter(function(o){return o&&typeof o==='object'&&!Array.isArray(o);});
+          if(vals.length)return vals;
+        }
+        return [];
+      }
+      var list=toList(arr);
       var mk=src.matchKey||'id';
       src.metrics.forEach(function(m){
         var item=null;
