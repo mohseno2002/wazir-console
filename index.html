@@ -358,14 +358,14 @@ var REPORT_SOURCES=[
   { id:"giza", name:"لوحة ري الجيزة", type:"sheet",
     sheetCsvUrl:"https://docs.google.com/spreadsheets/d/e/2PACX-1vQx4SgO2qck9gR6RX55GsO7ktMorG-sqnDOdnFAWO3iruSoOUHIqEEEzMoj_BFOu9oLjVjb4_7NNgjn/pub?output=csv",
     metrics:[
-      {key:"ayat_f",label:"حجز العياط — أمامي",column:"أمام حجز العياط",agg:"first",unit:"سم"},
-      {key:"ayat_b",label:"حجز العياط — خلفي",column:"خلف حجز العياط",agg:"first",unit:"سم"},
-      {key:"mans_f",label:"فم المنصورية — أمامي",column:"أمام فم المنصورية",agg:"first",unit:"سم"},
-      {key:"mans_b",label:"فم المنصورية — خلفي",column:"خلف فم المنصورية",agg:"first",unit:"سم"},
-      {key:"bhr_f",label:"الرياح البحيري — أمامي",column:"أمام فم الرياح البحيري",agg:"first",unit:"سم"},
-      {key:"bhr_b",label:"الرياح البحيري — خلفي",column:"خلف فم الرياح البحيري",agg:"first",unit:"سم"},
-      {key:"nsr_f",label:"الرياح الناصري — أمامي",column:"أمام الرياح الناصري",agg:"first",unit:"سم"},
-      {key:"nsr_b",label:"الرياح الناصري — خلفي",column:"خلف الرياح الناصري",agg:"first",unit:"سم"}
+      {key:"ayat_f",label:"حجز العياط — أمامي",column:"أمام حجز العياط",agg:"first",scale:0.01,unit:"م"},
+      {key:"ayat_b",label:"حجز العياط — خلفي",column:"خلف حجز العياط",agg:"first",scale:0.01,unit:"م"},
+      {key:"mans_f",label:"فم المنصورية — أمامي",column:"أمام فم المنصورية",agg:"first",scale:0.01,unit:"م"},
+      {key:"mans_b",label:"فم المنصورية — خلفي",column:"خلف فم المنصورية",agg:"first",scale:0.01,unit:"م"},
+      {key:"bhr_f",label:"الرياح البحيري — أمامي",column:"أمام فم الرياح البحيري",agg:"first",scale:0.01,unit:"م"},
+      {key:"bhr_b",label:"الرياح البحيري — خلفي",column:"خلف فم الرياح البحيري",agg:"first",scale:0.01,unit:"م"},
+      {key:"nsr_f",label:"الرياح الناصري — أمامي",column:"أمام الرياح الناصري",agg:"first",scale:0.01,unit:"م"},
+      {key:"nsr_b",label:"الرياح الناصري — خلفي",column:"خلف الرياح الناصري",agg:"first",scale:0.01,unit:"م"}
     ]},
   { id:"tired", name:"سجل الترع المتعبة", type:"sheet", sheetCsvUrl:"",
     metrics:[{key:"reg",label:"ترع مسجّلة",column:"canal_id",agg:"count",unit:"ترعة"}]}
@@ -436,7 +436,9 @@ function collectSystem(src){
     return readSheet(src.sheetCsvUrl).then(function(sheet){
       src.metrics.forEach(function(m){
         var col=sheet.rows.map(function(r){return r[m.column];}).filter(function(v){return v!=null&&v!=='';});
-        out.metrics.push({key:m.key,label:m.label,value:aggregate(col,m.agg),unit:m.unit||'',thresholds:m.thresholds||null});
+        var val=aggregate(col,m.agg);
+        if(val!=null&&m.scale)val=val*m.scale;
+        out.metrics.push({key:m.key,label:m.label,value:val,unit:m.unit||'',thresholds:m.thresholds||null});
       });
       return out;
     }).catch(function(){return emptyMetrics();});
@@ -545,7 +547,11 @@ function renderReport(rep){
       var stTxt=worst==='danger'?'حرج':worst==='warn'?'مراقبة':worst==='none'?'لا بيانات':'طبيعي';
       html+='<div class="rc-sys"><div class="rc-sys-top"><span class="rc-sys-name">'+esc(s.name)+'</span><span class="rc-sys-st '+worst+'">'+stTxt+'</span></div><div class="rc-sys-metrics">';
       s.metrics.forEach(function(m){
-        var v=m.value==null?'—':(typeof m.value==='number'?m.value.toLocaleString('en-US'):m.value);
+        var v;
+        if(m.value==null)v='—';
+        else if(typeof m.value==='number'){
+          v=(m.value%1!==0)?m.value.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}):m.value.toLocaleString('en-US');
+        }else v=m.value;
         html+='<span class="rc-m '+(m.status||'')+'">'+esc(m.label)+': <b>'+esc(v)+'</b> '+esc(m.unit||'')+'</span>';
       });
       html+='</div></div>';
