@@ -377,8 +377,16 @@ var REPORT_SOURCES=[
       {key:"nsr_f",label:"الرياح الناصري — أمامي",column:"أمام الرياح الناصري",agg:"first",scale:0.01,unit:"م"},
       {key:"nsr_b",label:"الرياح الناصري — خلفي",column:"خلف الرياح الناصري",agg:"first",scale:0.01,unit:"م"}
     ]},
-  { id:"tired", name:"سجل الترع المتعبة", type:"sheet", sheetCsvUrl:"",
-    metrics:[{key:"reg",label:"ترع مسجّلة",column:"canal_id",agg:"count",unit:"ترعة"}]}
+  { id:"tired", name:"سجل الترع المتعبة", type:"static",
+    metrics:[
+      {key:"reg",label:"إجمالي الترع المتعبة",value:320,unit:"ترعة"},
+      {key:"seg",label:"عدد الأحباس",value:447,unit:"حبس"},
+      {key:"len",label:"إجمالي الطول المتعب",value:1183.9,unit:"كم"},
+      {key:"adm",label:"عدد الإدارات",value:24,unit:"إدارة"},
+      {key:"brg",label:"جسور منهارة",value:224,unit:"حالة"},
+      {key:"enc",label:"تعديات",value:48,unit:"حالة"},
+      {key:"slt",label:"إطماء/تطهير",value:59,unit:"حالة"}
+    ]}
 ];
 
 /* ----- 2) أدوات ----- */
@@ -546,6 +554,12 @@ function collectSystem(src){
       });
       return out;
     }).catch(function(){return emptyMetrics();});
+  }
+  if(src.type==='static'){
+    src.metrics.forEach(function(m){
+      out.metrics.push({key:m.key,label:m.label,value:(m.value!=null?m.value:null),unit:m.unit||'',thresholds:m.thresholds||null});
+    });
+    return Promise.resolve(out);
   }
   return Promise.resolve(emptyMetrics());
 }
