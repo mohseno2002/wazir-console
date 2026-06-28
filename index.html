@@ -341,28 +341,29 @@ var REPORT_SOURCES=[
       {key:"discharge",label:"التصرف اللحظي",path:"kpis/discharge",agg:"last",unit:"م³/ث",thresholds:{warn:3000,danger:3500}},
       {key:"stations",label:"محطات متصلة",path:"kpis/stationsOnline",agg:"last",unit:"محطة"}
     ]},
-  { id:"ismailia_new", name:"ترعة الإسماعيلية", type:"firebase_array",
+  { id:"ismailia_new", name:"ترعة الإسماعيلية", type:"firebase_dated",
     firebaseUrl:"https://ismailia-64500-default-rtdb.europe-west1.firebasedatabase.app",
-    arrayPath:"irrigation-dt/branches", matchKey:"id",
+    datedPath:"irrigation-dt/branches/readings", limitLast:1,
     metrics:[
-      {key:"fom_f",label:"الفم — أمامي",match:"fom_ism",field:"refFront",unit:"م",thresholds:{warn:17.8,danger:18.2}},
-      {key:"fom_b",label:"الفم — خلفي",match:"fom_ism",field:"refBack",unit:"م"},
-      {key:"mnr_f",label:"حجز المنير — أمامي",match:"hgz_mnr",field:"refFront",unit:"م",thresholds:{warn:12.6,danger:13.0}},
-      {key:"mnr_b",label:"حجز المنير — خلفي",match:"hgz_mnr",field:"refBack",unit:"م"},
-      {key:"slh_f",label:"حجز الصالحية — أمامي",match:"hgz_slh",field:"refFront",unit:"م",thresholds:{warn:9.7,danger:10.0}},
-      {key:"slh_b",label:"حجز الصالحية — خلفي",match:"hgz_slh",field:"refBack",unit:"م"}
+      {key:"fom_f",label:"الفم — أمامي",node:"fom_ism",field:"front",unit:"م",thresholds:{warn:17.8,danger:18.2}},
+      {key:"fom_b",label:"الفم — خلفي",node:"fom_ism",field:"back",unit:"م"},
+      {key:"fom_q",label:"الفم — تصرف",node:"fom_ism",field:"flow",unit:"م³/ث"},
+      {key:"mnr_f",label:"حجز المنير — أمامي",node:"hgz_mnr",field:"front",unit:"م",thresholds:{warn:12.6,danger:13.2}},
+      {key:"mnr_b",label:"حجز المنير — خلفي",node:"hgz_mnr",field:"back",unit:"م"},
+      {key:"slh_f",label:"حجز الصالحية — أمامي",node:"hgz_slh",field:"front",unit:"م",thresholds:{warn:9.7,danger:10.0}},
+      {key:"slh_b",label:"حجز الصالحية — خلفي",node:"hgz_slh",field:"back",unit:"م"}
     ]},
   { id:"ismailia_old", name:"ترعة الإسماعيلية القديمة", type:"none", firebaseUrl:"", metrics:[], hideInReport:true },
-  { id:"suez", name:"التوأم الرقمي لترعة السويس", type:"firebase_array",
+  { id:"suez", name:"التوأم الرقمي لترعة السويس", type:"firebase_dated",
     firebaseUrl:"https://ismailia-64500-default-rtdb.europe-west1.firebasedatabase.app",
-    arrayPath:"irrigation-dt/branches", matchKey:"id",
+    datedPath:"irrigation-dt/branches/readings", limitLast:1,
     metrics:[
-      {key:"suez_f",label:"الفم — أمامي",match:"suez",field:"refFront",unit:"م",thresholds:{warn:7.7,danger:8.0}},
-      {key:"suez_b",label:"الفم — خلفي",match:"suez",field:"refBack",unit:"م"},
-      {key:"s16_f",label:"كيلو ١٦ — أمامي",match:"suez16",field:"refFront",unit:"م",thresholds:{warn:6.8,danger:7.1}},
-      {key:"s16_b",label:"كيلو ١٦ — خلفي",match:"suez16",field:"refBack",unit:"م"},
-      {key:"s50_f",label:"كيلو ٤٩.٥ — أمامي",match:"suez50",field:"refFront",unit:"م",thresholds:{warn:5.1,danger:5.4}},
-      {key:"s50_b",label:"كيلو ٤٩.٥ — خلفي",match:"suez50",field:"refBack",unit:"م"}
+      {key:"suez_f",label:"الفم — أمامي",node:"suez",field:"front",unit:"م",thresholds:{warn:7.7,danger:8.0}},
+      {key:"suez_b",label:"الفم — خلفي",node:"suez",field:"back",unit:"م"},
+      {key:"s16_f",label:"كيلو ١٦ — أمامي",node:"suez16",field:"front",unit:"م",thresholds:{warn:6.8,danger:7.1}},
+      {key:"s16_b",label:"كيلو ١٦ — خلفي",node:"suez16",field:"back",unit:"م"},
+      {key:"s50_f",label:"كيلو ٤٩.٥ — أمامي",node:"suez50",field:"front",unit:"م",thresholds:{warn:5.1,danger:5.4}},
+      {key:"s50_b",label:"كيلو ٤٩.٥ — خلفي",node:"suez50",field:"back",unit:"م"}
     ]},
   { id:"giza", name:"لوحة ري الجيزة", type:"sheet", dateColumn:"تاريخ اليوم",
     sheetCsvUrl:"https://docs.google.com/spreadsheets/d/e/2PACX-1vQx4SgO2qck9gR6RX55GsO7ktMorG-sqnDOdnFAWO3iruSoOUHIqEEEzMoj_BFOu9oLjVjb4_7NNgjn/pub?output=csv",
@@ -509,6 +510,7 @@ function collectSystem(src){
   }
   if(src.type==='firebase_dated'&&src.firebaseUrl&&src.datedPath){
     var durl=src.firebaseUrl.replace(/\/+$/,'')+'/'+src.datedPath.replace(/^\/+/,'')+'.json';
+    if(src.limitLast)durl+='?orderBy="$key"&limitToLast='+src.limitLast;
     return fetch(durl).then(function(r){if(!r.ok)throw 0;return r.json();}).then(function(obj){
       if(!obj||typeof obj!=='object')return emptyMetrics();
       // اختر آخر تاريخ (المفاتيح تواريخ نصية YYYY-MM-DD، نتجاهل ما يبدأ بشرطة سفلية)
@@ -526,10 +528,27 @@ function collectSystem(src){
       return out;
     }).catch(function(){return emptyMetrics();});
   }
+  if(src.type==='appscript'&&src.scriptUrl){
+    var surl=src.scriptUrl+(src.scriptUrl.indexOf('?')>=0?'&':'?')+'t='+Date.now();
+    return fetch(surl).then(function(r){if(!r.ok)throw 0;return r.json();}).then(function(d){
+      if(!d||!d.readings||typeof d.readings!=='object')return emptyMetrics();
+      // اختر آخر تاريخ من القراءات
+      var dates=Object.keys(d.readings).filter(function(k){return k.charAt(0)!=='_';});
+      dates.sort();
+      var latest=dates.length?d.readings[dates[dates.length-1]]:null;
+      src.metrics.forEach(function(m){
+        var val=null;
+        if(latest&&latest[m.node]&&latest[m.node][m.field]!=null){
+          val=Number(latest[m.node][m.field]);
+          if(isNaN(val))val=null;
+        }
+        out.metrics.push({key:m.key,label:m.label,value:val,unit:m.unit||'',thresholds:m.thresholds||null});
+      });
+      return out;
+    }).catch(function(){return emptyMetrics();});
+  }
   return Promise.resolve(emptyMetrics());
 }
-
-/* ----- 5) التلخيص والتعليق القاعدي ----- */
 function buildSummary(systems){
   var danger=0,warn=0,active=0;
   systems.forEach(function(s){
