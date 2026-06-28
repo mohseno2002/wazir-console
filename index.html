@@ -364,7 +364,7 @@ var REPORT_SOURCES=[
       {key:"s50_f",label:"كيلو ٤٩.٥ — أمامي",match:"suez50",field:"refFront",unit:"م",thresholds:{warn:5.1,danger:5.4}},
       {key:"s50_b",label:"كيلو ٤٩.٥ — خلفي",match:"suez50",field:"refBack",unit:"م"}
     ]},
-  { id:"giza", name:"لوحة ري الجيزة", type:"sheet",
+  { id:"giza", name:"لوحة ري الجيزة", type:"sheet", dateColumn:"تاريخ اليوم",
     sheetCsvUrl:"https://docs.google.com/spreadsheets/d/e/2PACX-1vQx4SgO2qck9gR6RX55GsO7ktMorG-sqnDOdnFAWO3iruSoOUHIqEEEzMoj_BFOu9oLjVjb4_7NNgjn/pub?output=csv",
     metrics:[
       {key:"ayat_f",label:"حجز العياط — أمامي",column:"أمام حجز العياط",agg:"first",scale:0.01,unit:"م"},
@@ -443,9 +443,33 @@ function collectSystem(src){
   }
   if(src.type==='sheet'&&src.sheetCsvUrl){
     return readSheet(src.sheetCsvUrl).then(function(sheet){
+      // لو حُدّد عمود تاريخ، نجد الصف الأحدث بمقارنة التواريخ (بغض النظر عن ترتيب الصفوف)
+      var latestRow=null;
+      if(src.dateColumn){
+        var best=-Infinity;
+        sheet.rows.forEach(function(r){
+          var raw=r[src.dateColumn];
+          if(!raw)return;
+          // ندعم صيغ مثل 2026/05/28 أو 2026-05-28
+          var t=Date.parse(String(raw).replace(/\//g,'-'));
+          if(isNaN(t)){
+            // محاولة ثانية: عكس ترتيب لو كان dd-mm-yyyy
+            var p=String(raw).split(/[\/\-]/);
+            if(p.length===3)t=Date.parse(p[0].length===4?(p[0]+'-'+p[1]+'-'+p[2]):(p[2]+'-'+p[1]+'-'+p[0]));
+          }
+          if(!isNaN(t)&&t>best){best=t;latestRow=r;}
+        });
+      }
       src.metrics.forEach(function(m){
-        var col=sheet.rows.map(function(r){return r[m.column];}).filter(function(v){return v!=null&&v!=='';});
-        var val=aggregate(col,m.agg);
+        var val;
+        if(src.dateColumn&&latestRow){
+          var raw=latestRow[m.column];
+          val=(raw==null||raw==='')?null:Number(raw);
+          if(isNaN(val))val=null;
+        }else{
+          var col=sheet.rows.map(function(r){return r[m.column];}).filter(function(v){return v!=null&&v!=='';});
+          val=aggregate(col,m.agg);
+        }
         if(val!=null&&m.scale)val=val*m.scale;
         out.metrics.push({key:m.key,label:m.label,value:val,unit:m.unit||'',thresholds:m.thresholds||null});
       });
